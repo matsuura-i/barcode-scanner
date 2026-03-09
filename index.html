@@ -5,7 +5,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
 
 <style>
 
@@ -35,6 +35,7 @@ display:none;
 #video{
 width:100%;
 max-width:400px;
+margin:auto;
 }
 
 #result{
@@ -77,6 +78,7 @@ margin-top:15px;
 const GAS_URL="https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec";
 
 let mode="use";
+let lastCode="";
 
 function beep(){
 
@@ -92,7 +94,10 @@ osc.stop(ctx.currentTime+0.1);
 function extractGTIN(code){
 
 if(code.includes("01")){
-return code.substring(code.indexOf("01")+2,code.indexOf("01")+16);
+return code.substring(
+code.indexOf("01")+2,
+code.indexOf("01")+16
+);
 }
 
 return code;
@@ -116,6 +121,11 @@ facingMode:"environment"
 }
 },
 
+locator:{
+patchSize:"medium",
+halfSample:true
+},
+
 decoder:{
 readers:["code_128_reader"]
 }
@@ -135,6 +145,12 @@ Quagga.onDetected(function(data){
 
 let raw=data.codeResult.code;
 
+if(raw===lastCode){
+return;
+}
+
+lastCode=raw;
+
 let gtin=extractGTIN(raw);
 
 fetch(
@@ -151,6 +167,12 @@ document.getElementById("result").innerHTML=t;
 beep();
 
 });
+
+setTimeout(()=>{
+
+lastCode="";
+
+},1500);
 
 });
 
