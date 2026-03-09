@@ -5,24 +5,43 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<script src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="https://unpkg.com/@zxing/library@0.19.1"></script>
 
 <style>
 
 body{
 font-family:sans-serif;
 text-align:center;
+margin:0;
+background:#f4f4f4;
+}
+
+header{
+background:#1565c0;
+color:white;
+padding:15px;
+font-size:22px;
 }
 
 button{
 font-size:22px;
-margin:10px;
 padding:15px;
+margin:10px;
 }
 
 video{
 width:95%;
-max-width:400px;
+max-width:500px;
+border:3px solid #333;
+}
+
+#scanner{
+display:none;
+}
+
+#result{
+font-size:24px;
+margin-top:10px;
 }
 
 </style>
@@ -31,25 +50,21 @@ max-width:400px;
 
 <body>
 
-<h2>医療在庫管理</h2>
+<header>医療在庫スキャン</header>
 
 <div id="menu">
 
-<button onclick="startScan('use')">
-使用
-</button>
+<button onclick="startScan('use')">使用</button>
 
-<button onclick="startScan('add')">
-在庫追加
-</button>
+<button onclick="startScan('add')">在庫追加</button>
 
 </div>
 
-<div id="scanner" style="display:none">
+<div id="scanner">
 
 <video id="video"></video>
 
-<h2 id="result">スキャン待機</h2>
+<div id="result">スキャン待機</div>
 
 <button onclick="stopScan()">中止</button>
 
@@ -60,61 +75,101 @@ max-width:400px;
 const GAS_URL="https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec";
 
 let mode="use";
-let lastCode="";
+let lastScan="";
+let lastTime=0;
+
+const codeReader = new ZXing.BrowserMultiFormatReader({
+
+delayBetweenScanAttempts:80
+
+});
 
 function beep(){
 
 let ctx=new AudioContext();
+
 let osc=ctx.createOscillator();
 
 osc.connect(ctx.destination);
+
 osc.start();
+
 osc.stop(ctx.currentTime+0.1);
 
 }
 
-function extractGTIN(code){
+function extractGTIN(text){
 
-let match = code.match(/\d{14}/);
+let match=text.match(/\d{14}/);
 
 if(match){
+
 return match[0];
-}
-
-return code;
 
 }
 
-let codeReader = new ZXing.BrowserMultiFormatReader();
+return text;
+
+}
 
 function startScan(m){
 
 mode=m;
 
 document.getElementById("menu").style.display="none";
+
 document.getElementById("scanner").style.display="block";
 
-codeReader.decodeFromVideoDevice(null,'video',(result,err)=>{
+codeReader.decodeFromConstraints(
+
+{
+
+video:{
+
+facingMode:"environment",
+
+width:{ideal:1280},
+
+height:{ideal:720}
+
+}
+
+},
+
+'video',
+
+(result,err)=>{
 
 if(result){
 
 let raw=result.text;
 
-if(raw===lastCode){
+let now=Date.now();
+
+if(raw===lastScan && now-lastTime<1500){
+
 return;
+
 }
 
-lastCode=raw;
+lastScan=raw;
+
+lastTime=now;
 
 let gtin=extractGTIN(raw);
 
 fetch(
+
 GAS_URL+
+
 "?gtin="+gtin+
+
 "&mode="+mode
+
 )
 
 .then(r=>r.text())
+
 .then(t=>{
 
 document.getElementById("result").innerHTML=t;
@@ -123,13 +178,11 @@ beep();
 
 });
 
-setTimeout(()=>{
-lastCode="";
-},1500);
+}
 
 }
 
-});
+);
 
 }
 
@@ -138,6 +191,7 @@ function stopScan(){
 codeReader.reset();
 
 document.getElementById("scanner").style.display="none";
+
 document.getElementById("menu").style.display="block";
 
 }
