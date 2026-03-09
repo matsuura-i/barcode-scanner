@@ -5,63 +5,34 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<script src="https://unpkg.com/@zxing/library@latest"></script>
-
 <style>
 
 body{
 font-family:sans-serif;
 text-align:center;
 margin:0;
-background:#f2f2f2;
 }
 
 header{
-background:#1565c0;
+background:#1976d2;
 color:white;
 padding:15px;
 font-size:22px;
 }
 
 video{
-width:100%;
+width:95%;
 max-width:500px;
 }
 
-#frame{
-
-position:absolute;
-
-border:4px solid red;
-
-width:80%;
-
-height:120px;
-
-top:50%;
-
-left:50%;
-
-transform:translate(-50%,-50%);
-
-}
-
 button{
-
 font-size:22px;
-
-padding:15px;
-
 margin:10px;
-
+padding:15px;
 }
 
 #scanner{
-
 display:none;
-
-position:relative;
-
 }
 
 </style>
@@ -70,23 +41,25 @@ position:relative;
 
 <body>
 
-<header>医療バーコードスキャン</header>
+<header>医療在庫スキャン</header>
 
 <div id="menu">
 
-<button onclick="startScan('use')">使用</button>
+<button onclick="startScan('use')">
+使用
+</button>
 
-<button onclick="startScan('add')">在庫追加</button>
+<button onclick="startScan('add')">
+在庫追加
+</button>
 
 </div>
 
 <div id="scanner">
 
-<video id="video"></video>
+<video id="video" autoplay></video>
 
-<div id="frame"></div>
-
-<div id="result">スキャン待機</div>
+<h2 id="result">スキャン待機</h2>
 
 <button onclick="stopScan()">中止</button>
 
@@ -97,25 +70,20 @@ position:relative;
 const GAS_URL="https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec";
 
 let mode="use";
+let scanning=false;
 
-let lastCode="";
-
-let reader=new ZXing.BrowserMultiFormatReader({
-
-delayBetweenScanAttempts:100
-
+const barcodeDetector =
+new BarcodeDetector({
+formats:["code_128","ean_13","ean_8"]
 });
 
 function beep(){
 
 let ctx=new AudioContext();
-
 let osc=ctx.createOscillator();
 
 osc.connect(ctx.destination);
-
 osc.start();
-
 osc.stop(ctx.currentTime+0.1);
 
 }
@@ -125,69 +93,54 @@ function extractGTIN(text){
 let match=text.match(/\d{14}/);
 
 if(match){
-
 return match[0];
-
 }
 
 return text;
 
 }
 
-function startScan(m){
+async function startScan(m){
 
 mode=m;
 
 document.getElementById("menu").style.display="none";
-
 document.getElementById("scanner").style.display="block";
 
-reader.decodeFromConstraints(
+const stream = await navigator.mediaDevices.getUserMedia({
+video:{facingMode:"environment"}
+});
 
-{
+const video=document.getElementById("video");
 
-video:{
+video.srcObject=stream;
 
-facingMode:"environment",
+scanning=true;
 
-width:{ideal:1280},
-
-height:{ideal:720}
-
-}
-
-},
-
-"video",
-
-(result,err)=>{
-
-if(result){
-
-let raw=result.text;
-
-if(raw===lastCode){
-
-return;
+scanLoop(video);
 
 }
 
-lastCode=raw;
+async function scanLoop(video){
+
+if(!scanning)return;
+
+const barcodes =
+await barcodeDetector.detect(video);
+
+if(barcodes.length>0){
+
+let raw=barcodes[0].rawValue;
 
 let gtin=extractGTIN(raw);
 
 fetch(
-
 GAS_URL+
-
 "?gtin="+gtin+
-
 "&mode="+mode
-
 )
 
 .then(r=>r.text())
-
 .then(t=>{
 
 document.getElementById("result").innerHTML=t;
@@ -196,27 +149,19 @@ beep();
 
 });
 
-setTimeout(()=>{
-
-lastCode="";
-
-},1500);
+await new Promise(r=>setTimeout(r,1500));
 
 }
 
-}
-
-);
+requestAnimationFrame(()=>scanLoop(video));
 
 }
 
 function stopScan(){
 
-reader.reset();
+scanning=false;
 
-document.getElementById("scanner").style.display="none";
-
-document.getElementById("menu").style.display="block";
+location.reload();
 
 }
 
