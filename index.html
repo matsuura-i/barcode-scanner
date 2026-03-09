@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+
+<style>
+
+body{
+font-family:sans-serif;
+text-align:center;
+}
+
+video{
+width:100%;
+max-width:400px;
+}
+
+button{
+font-size:18px;
+margin:5px;
+padding:10px;
+}
+
+#result{
+font-size:26px;
+margin-top:20px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>医療在庫管理</h2>
+
+<button onclick="mode='out'">出庫</button>
+<button onclick="mode='in'">入庫</button>
+<button onclick="mode='inventory'">棚卸</button>
+
+<video id="video"></video>
+
+<div id="result">カメラ起動中</div>
+
+<script>
+
+const GAS="GAS_URL";
+
+let mode="out";
+
+function beep(){
+
+let ctx=new AudioContext();
+let osc=ctx.createOscillator();
+
+osc.connect(ctx.destination);
+osc.start();
+osc.stop(ctx.currentTime+0.1);
+
+}
+
+function parseGS1(code){
+
+let gtin="";
+let lot="";
+let exp="";
+
+if(code.includes("01")){
+gtin=code.substring(code.indexOf("01")+2,code.indexOf("01")+16);
+}
+
+if(code.includes("17")){
+exp=code.substring(code.indexOf("17")+2,code.indexOf("17")+8);
+}
+
+if(code.includes("10")){
+lot=code.substring(code.indexOf("10")+2);
+}
+
+return{gtin,lot,exp};
+
+}
+
+const reader=new ZXing.BrowserMultiFormatReader();
+
+reader.decodeFromVideoDevice(null,video,(result)=>{
+
+if(result){
+
+let data=parseGS1(result.text);
+
+fetch(GAS+
+"?mode=scan"+
+"&gtin="+data.gtin+
+"&lot="+data.lot+
+"&exp="+data.exp+
+"&action="+mode
+)
+
+.then(r=>r.text())
+.then(t=>{
+
+result.innerHTML=t;
+
+beep();
+
+});
+
+}
+
+});
+
+</script>
+
+</body>
+</html>
