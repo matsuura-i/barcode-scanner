@@ -5,7 +5,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<script src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 
 <style>
 
@@ -28,7 +28,11 @@ padding:15px;
 margin:10px;
 }
 
-video{
+#scanner{
+display:none;
+}
+
+#video{
 width:100%;
 max-width:400px;
 }
@@ -36,10 +40,6 @@ max-width:400px;
 #result{
 font-size:24px;
 margin-top:15px;
-}
-
-#scanner{
-display:none;
 }
 
 </style>
@@ -64,7 +64,7 @@ display:none;
 
 <div id="scanner">
 
-<video id="video"></video>
+<div id="video"></div>
 
 <div id="result">スキャン待機</div>
 
@@ -77,27 +77,6 @@ display:none;
 const GAS_URL="https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec";
 
 let mode="use";
-let reader;
-
-function startScan(m){
-
-mode=m;
-
-document.getElementById("menu").style.display="none";
-document.getElementById("scanner").style.display="block";
-
-startCamera();
-
-}
-
-function stopScan(){
-
-reader.reset();
-
-document.getElementById("scanner").style.display="none";
-document.getElementById("menu").style.display="block";
-
-}
 
 function beep(){
 
@@ -113,28 +92,48 @@ osc.stop(ctx.currentTime+0.1);
 function extractGTIN(code){
 
 if(code.includes("01")){
-return code.substring(
-code.indexOf("01")+2,
-code.indexOf("01")+16
-);
+return code.substring(code.indexOf("01")+2,code.indexOf("01")+16);
 }
 
 return code;
 
 }
 
-function startCamera(){
+function startScan(m){
 
-reader = new ZXing.BrowserMultiFormatReader();
+mode=m;
 
-reader.decodeFromVideoDevice(
-null,
-"video",
-(result,err)=>{
+document.getElementById("menu").style.display="none";
+document.getElementById("scanner").style.display="block";
 
-if(result){
+Quagga.init({
 
-let raw=result.text;
+inputStream:{
+type:"LiveStream",
+target:document.querySelector('#video'),
+constraints:{
+facingMode:"environment"
+}
+},
+
+decoder:{
+readers:["code_128_reader"]
+}
+
+},function(err){
+
+if(err){
+console.log(err);
+return;
+}
+
+Quagga.start();
+
+});
+
+Quagga.onDetected(function(data){
+
+let raw=data.codeResult.code;
 
 let gtin=extractGTIN(raw);
 
@@ -145,7 +144,6 @@ GAS_URL+
 )
 
 .then(r=>r.text())
-
 .then(t=>{
 
 document.getElementById("result").innerHTML=t;
@@ -154,9 +152,16 @@ beep();
 
 });
 
+});
+
 }
 
-});
+function stopScan(){
+
+Quagga.stop();
+
+document.getElementById("scanner").style.display="none";
+document.getElementById("menu").style.display="block";
 
 }
 
