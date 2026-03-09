@@ -12,6 +12,20 @@
 body{
 font-family:sans-serif;
 text-align:center;
+margin:0;
+}
+
+header{
+background:#1976d2;
+color:white;
+padding:15px;
+font-size:22px;
+}
+
+button{
+font-size:20px;
+padding:15px;
+margin:10px;
 }
 
 video{
@@ -19,15 +33,13 @@ width:100%;
 max-width:400px;
 }
 
-button{
-font-size:18px;
-margin:5px;
-padding:10px;
+#result{
+font-size:24px;
+margin-top:15px;
 }
 
-#result{
-font-size:26px;
-margin-top:20px;
+#scanner{
+display:none;
 }
 
 </style>
@@ -36,21 +48,56 @@ margin-top:20px;
 
 <body>
 
-<h2>医療在庫管理</h2>
+<header>医療在庫アプリ</header>
 
-<button onclick="mode='out'">出庫</button>
-<button onclick="mode='in'">入庫</button>
-<button onclick="mode='inventory'">棚卸</button>
+<div id="menu">
+
+<button onclick="startScan('use')">
+使用
+</button>
+
+<button onclick="startScan('add')">
+在庫追加
+</button>
+
+</div>
+
+<div id="scanner">
 
 <video id="video"></video>
 
-<div id="result">カメラ起動中</div>
+<div id="result">スキャン待機</div>
+
+<button onclick="stopScan()">中止</button>
+
+</div>
 
 <script>
 
-const GAS="GAS_URL";
+const GAS_URL="GAS_URL";
 
-let mode="out";
+let mode="use";
+let reader;
+
+function startScan(m){
+
+mode=m;
+
+document.getElementById("menu").style.display="none";
+document.getElementById("scanner").style.display="block";
+
+startCamera();
+
+}
+
+function stopScan(){
+
+reader.reset();
+
+document.getElementById("scanner").style.display="none";
+document.getElementById("menu").style.display="block";
+
+}
 
 function beep(){
 
@@ -63,48 +110,45 @@ osc.stop(ctx.currentTime+0.1);
 
 }
 
-function parseGS1(code){
-
-let gtin="";
-let lot="";
-let exp="";
+function extractGTIN(code){
 
 if(code.includes("01")){
-gtin=code.substring(code.indexOf("01")+2,code.indexOf("01")+16);
+return code.substring(
+code.indexOf("01")+2,
+code.indexOf("01")+16
+);
 }
 
-if(code.includes("17")){
-exp=code.substring(code.indexOf("17")+2,code.indexOf("17")+8);
-}
-
-if(code.includes("10")){
-lot=code.substring(code.indexOf("10")+2);
-}
-
-return{gtin,lot,exp};
+return code;
 
 }
 
-const reader=new ZXing.BrowserMultiFormatReader();
+function startCamera(){
 
-reader.decodeFromVideoDevice(null,video,(result)=>{
+reader = new ZXing.BrowserMultiFormatReader();
+
+reader.decodeFromVideoDevice(
+null,
+"video",
+(result,err)=>{
 
 if(result){
 
-let data=parseGS1(result.text);
+let raw=result.text;
 
-fetch(GAS+
-"?mode=scan"+
-"&gtin="+data.gtin+
-"&lot="+data.lot+
-"&exp="+data.exp+
-"&action="+mode
+let gtin=extractGTIN(raw);
+
+fetch(
+GAS_URL+
+"?gtin="+gtin+
+"&mode="+mode
 )
 
 .then(r=>r.text())
+
 .then(t=>{
 
-result.innerHTML=t;
+document.getElementById("result").innerHTML=t;
 
 beep();
 
@@ -114,7 +158,10 @@ beep();
 
 });
 
+}
+
 </script>
 
 </body>
+
 </html>
