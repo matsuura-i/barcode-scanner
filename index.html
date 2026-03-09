@@ -5,42 +5,24 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@latest"></script>
 
 <style>
 
 body{
 font-family:sans-serif;
 text-align:center;
-margin:0;
-}
-
-header{
-background:#1976d2;
-color:white;
-padding:15px;
-font-size:22px;
 }
 
 button{
-font-size:20px;
-padding:15px;
+font-size:22px;
 margin:10px;
+padding:15px;
 }
 
-#scanner{
-display:none;
-}
-
-#video{
-width:100%;
+video{
+width:95%;
 max-width:400px;
-margin:auto;
-}
-
-#result{
-font-size:24px;
-margin-top:15px;
 }
 
 </style>
@@ -49,7 +31,7 @@ margin-top:15px;
 
 <body>
 
-<header>医療在庫アプリ</header>
+<h2>医療在庫管理</h2>
 
 <div id="menu">
 
@@ -63,11 +45,11 @@ margin-top:15px;
 
 </div>
 
-<div id="scanner">
+<div id="scanner" style="display:none">
 
-<div id="video"></div>
+<video id="video"></video>
 
-<div id="result">スキャン待機</div>
+<h2 id="result">スキャン待機</h2>
 
 <button onclick="stopScan()">中止</button>
 
@@ -93,16 +75,17 @@ osc.stop(ctx.currentTime+0.1);
 
 function extractGTIN(code){
 
-if(code.includes("01")){
-return code.substring(
-code.indexOf("01")+2,
-code.indexOf("01")+16
-);
+let match = code.match(/\d{14}/);
+
+if(match){
+return match[0];
 }
 
 return code;
 
 }
+
+let codeReader = new ZXing.BrowserMultiFormatReader();
 
 function startScan(m){
 
@@ -111,39 +94,11 @@ mode=m;
 document.getElementById("menu").style.display="none";
 document.getElementById("scanner").style.display="block";
 
-Quagga.init({
+codeReader.decodeFromVideoDevice(null,'video',(result,err)=>{
 
-inputStream:{
-type:"LiveStream",
-target:document.querySelector('#video'),
-constraints:{
-facingMode:"environment"
-}
-},
+if(result){
 
-locator:{
-patchSize:"medium",
-halfSample:true
-},
-
-decoder:{
-readers:["code_128_reader"]
-}
-
-},function(err){
-
-if(err){
-console.log(err);
-return;
-}
-
-Quagga.start();
-
-});
-
-Quagga.onDetected(function(data){
-
-let raw=data.codeResult.code;
+let raw=result.text;
 
 if(raw===lastCode){
 return;
@@ -169,10 +124,10 @@ beep();
 });
 
 setTimeout(()=>{
-
 lastCode="";
-
 },1500);
+
+}
 
 });
 
@@ -180,7 +135,7 @@ lastCode="";
 
 function stopScan(){
 
-Quagga.stop();
+codeReader.reset();
 
 document.getElementById("scanner").style.display="none";
 document.getElementById("menu").style.display="block";
