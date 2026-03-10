@@ -1,147 +1,98 @@
 <!DOCTYPE html>
 <html>
-
 <head>
 
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<title>医療バーコードスキャン</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
-
-<style>
-
-body{
-font-family:sans-serif;
-text-align:center;
-}
-
-#scanner{
-width:100%;
-max-width:500px;
-margin:auto;
-}
-
-button{
-font-size:22px;
-padding:12px;
-margin:10px;
-}
-
-</style>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
 </head>
 
 <body>
 
-<h2>医療在庫スキャン</h2>
+<h2>薬剤OCR読み取り</h2>
 
-<button onclick="startScan('use')">使用</button>
-<button onclick="startScan('add')">在庫追加</button>
+<video id="video" width="300" autoplay></video>
 
-<div id="scanner"></div>
+<br><br>
 
-<h3 id="result">待機中</h3>
+<button onclick="scan()">読み取り</button>
+
+<br><br>
+
+結果
+<div id="result"></div>
 
 <script>
 
-const GAS_URL="https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec"
+const GAS_URL = "https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec";
 
-let mode="use"
-let last=""
-
-function beep(){
-
-let ctx=new AudioContext()
-let osc=ctx.createOscillator()
-
-osc.connect(ctx.destination)
-
-osc.start()
-
-osc.stop(ctx.currentTime+0.1)
-
-}
-
-function startScan(m){
-
-mode=m
-
-Quagga.init({
-
-inputStream:{
-name:"Live",
-type:"LiveStream",
-target:document.querySelector('#scanner'),
-constraints:{
-facingMode:"environment",
-width:1280,
-height:720
-}
-},
-
-locator:{
-patchSize:"large",
-halfSample:false
-},
-
-decoder:{
-readers:[
-"code_128_reader",
-"ean_reader",
-"ean_13_reader",
-"upc_reader"
-]
-},
-
-locate:true
-
-},function(err){
-
-locate:true
-
-},function(err){
-
-if(err){
-
-console.log(err)
-
-return
-
-}
-
-Quagga.start()
-
+navigator.mediaDevices.getUserMedia({
+  video: { facingMode: "environment" }
 })
+.then(stream => {
+
+  document.getElementById("video").srcObject = stream;
+
+});
+
+function scan(){
+
+  const video = document.getElementById("video");
+
+  const canvas = document.createElement("canvas");
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.drawImage(video,0,0);
+
+  Tesseract.recognize(
+    canvas,
+    'eng',
+    {
+      tessedit_char_whitelist: '0123456789'
+    }
+  ).then(({data:{text}})=>{
+
+    const code = text.replace(/\D/g,'');
+
+    if(code.length < 14){
+
+      alert("コード認識失敗");
+
+      return;
+    }
+
+    const gtin = code.substring(0,14);
+
+    updateStock(gtin);
+
+  });
 
 }
 
-Quagga.onDetected(function(data){
+function updateStock(code){
 
-let code=data.codeResult.code
-
-if(code===last) return
-
-last=code
-
-let gtin=code.match(/\d{14}/)
-
-if(gtin) code=gtin[0]
-
-document.getElementById("result").innerText=code
-
-beep()
-
-fetch(GAS_URL+"?gtin="+code+"&mode="+mode)
-
-setTimeout(()=>{
-last=""
-},1500)
-
+fetch(GAS_URL,{
+method:"POST",
+body:JSON.stringify({
+code:code,
+mode:"use",
+qty:1
 })
+})
+.then(r=>r.json())
+.then(data=>{
+
+document.getElementById("result").innerHTML =
+data.drug + "<br>在庫：" + data.stock;
+
+});
+
+}
 
 </script>
 
 </body>
-
 </html>
