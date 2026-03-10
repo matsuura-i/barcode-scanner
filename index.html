@@ -2,97 +2,156 @@
 <html>
 <head>
 
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>薬剤番号読み取り</title>
+
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+<style>
+
+body{
+font-family:sans-serif;
+text-align:center;
+}
+
+video{
+width:90%;
+max-width:400px;
+border:1px solid #ccc;
+}
+
+button{
+font-size:20px;
+padding:10px 20px;
+margin:10px;
+}
+
+#result{
+font-size:20px;
+margin-top:20px;
+}
+
+</style>
 
 </head>
 
 <body>
 
-<h2>薬剤OCR読み取り</h2>
+<h2>薬剤コード読み取り</h2>
 
-<video id="video" width="300" autoplay></video>
+<button onclick="startCamera()">カメラ起動</button>
 
-<br><br>
+<br>
+
+<video id="video" autoplay playsinline></video>
+
+<br>
 
 <button onclick="scan()">読み取り</button>
 
-<br><br>
-
-結果
 <div id="result"></div>
 
 <script>
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec";
+let stream
 
-navigator.mediaDevices.getUserMedia({
-  video: { facingMode: "environment" }
+async function startCamera(){
+
+try{
+
+stream = await navigator.mediaDevices.getUserMedia({
+video:{
+facingMode:"environment",
+width:{ideal:1280},
+height:{ideal:720}
+}
 })
-.then(stream => {
 
-  document.getElementById("video").srcObject = stream;
+const video=document.getElementById("video")
 
-});
+video.srcObject=stream
 
-function scan(){
+}catch(e){
 
-  const video = document.getElementById("video");
-
-  const canvas = document.createElement("canvas");
-
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  const ctx = canvas.getContext("2d");
-
-  ctx.drawImage(video,0,0);
-
-  Tesseract.recognize(
-    canvas,
-    'eng',
-    {
-      tessedit_char_whitelist: '0123456789'
-    }
-  ).then(({data:{text}})=>{
-
-    const code = text.replace(/\D/g,'');
-
-    if(code.length < 14){
-
-      alert("コード認識失敗");
-
-      return;
-    }
-
-    const gtin = code.substring(0,14);
-
-    updateStock(gtin);
-
-  });
+alert("カメラ起動エラー："+e)
 
 }
 
-function updateStock(code){
+}
 
-fetch(GAS_URL,{
+async function scan(){
+
+const video=document.getElementById("video")
+
+const canvas=document.createElement("canvas")
+
+canvas.width=video.videoWidth
+canvas.height=video.videoHeight
+
+const ctx=canvas.getContext("2d")
+
+ctx.drawImage(video,0,0)
+
+document.getElementById("result").innerHTML="解析中..."
+
+const {data:{text}}=await Tesseract.recognize(
+canvas,
+"eng",
+{
+tessedit_char_whitelist:"0123456789"
+}
+)
+
+const num=text.replace(/\D/g,"")
+
+if(num.length<14){
+
+document.getElementById("result").innerHTML="読み取り失敗"
+
+return
+
+}
+
+const gtin=num.substring(0,14)
+
+document.getElementById("result").innerHTML="GTIN:"+gtin
+
+sendToGAS(gtin)
+
+}
+
+function sendToGAS(code){
+
+fetch("GAS_WEBAPP_URL",{
+
 method:"POST",
+
 body:JSON.stringify({
+
 code:code,
+
 mode:"use",
+
 qty:1
+
 })
+
 })
+
 .then(r=>r.json())
+
 .then(data=>{
 
-document.getElementById("result").innerHTML =
-data.drug + "<br>在庫：" + data.stock;
+document.getElementById("result").innerHTML=
+data.drug+" 在庫:"+data.stock
 
-});
+})
 
 }
 
 </script>
 
 </body>
+
 </html>
