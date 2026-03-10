@@ -4,7 +4,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>薬剤番号読み取り</title>
+<title>薬剤GS1読み取り</title>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
@@ -86,36 +86,57 @@ const video=document.getElementById("video")
 
 const canvas=document.createElement("canvas")
 
-canvas.width=video.videoWidth
-canvas.height=video.videoHeight
+// OCR範囲（下1/3）
+const cropHeight = video.videoHeight * 0.35
+const cropY = video.videoHeight * 0.65
 
-const ctx=canvas.getContext("2d")
+// 2倍拡大
+canvas.width = video.videoWidth * 2
+canvas.height = cropHeight * 2
 
-ctx.drawImage(video,0,0)
+const ctx = canvas.getContext("2d")
+
+ctx.drawImage(
+ video,
+ 0,
+ cropY,
+ video.videoWidth,
+ cropHeight,
+ 0,
+ 0,
+ canvas.width,
+ canvas.height
+)
 
 document.getElementById("result").innerHTML="解析中..."
 
-const {data:{text}}=await Tesseract.recognize(
-canvas,
-"eng",
-{
-tessedit_char_whitelist:"0123456789"
-}
+const {data:{text}} = await Tesseract.recognize(
+ canvas,
+ "eng",
+ {
+  tessedit_char_whitelist:"0123456789"
+ }
 )
 
-const num=text.replace(/\D/g,"")
+console.log(text)
 
-if(num.length<14){
+// 数字のみ
+const numbers = text.replace(/\D/g,'')
 
-document.getElementById("result").innerHTML="読み取り失敗"
+// 14桁検索
+const match = numbers.match(/\d{14}/)
+
+if(!match){
+
+document.getElementById("result").innerHTML="14桁コード認識失敗"
 
 return
 
 }
 
-const gtin=num.substring(0,14)
+const gtin = match[0]
 
-document.getElementById("result").innerHTML="GTIN:"+gtin
+document.getElementById("result").innerHTML="GTIN："+gtin
 
 sendToGAS(gtin)
 
@@ -130,9 +151,7 @@ method:"POST",
 body:JSON.stringify({
 
 code:code,
-
 mode:"use",
-
 qty:1
 
 })
@@ -143,8 +162,17 @@ qty:1
 
 .then(data=>{
 
+if(data.error){
+
+document.getElementById("result").innerHTML="薬剤未登録"
+
+return
+
+}
+
 document.getElementById("result").innerHTML=
-data.drug+" 在庫:"+data.stock
+
+data.drug+"<br>在庫："+data.stock
 
 })
 
@@ -153,5 +181,4 @@ data.drug+" 在庫:"+data.stock
 </script>
 
 </body>
-
 </html>
