@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html>
+
 <head>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>バーコードスキャン</title>
+<title>医療バーコードスキャン</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
 
 <style>
 
@@ -13,10 +16,10 @@ font-family:sans-serif;
 text-align:center;
 }
 
-video{
-width:95%;
+#scanner{
+width:100%;
 max-width:500px;
-border:2px solid #333;
+margin:auto;
 }
 
 button{
@@ -31,48 +34,105 @@ margin:10px;
 
 <body>
 
-<h2>医療バーコードスキャン</h2>
+<h2>医療在庫スキャン</h2>
 
-<button onclick="startCamera()">カメラ開始</button>
+<button onclick="startScan('use')">使用</button>
+<button onclick="startScan('add')">在庫追加</button>
 
-<br>
+<div id="scanner"></div>
 
-<video id="video" autoplay playsinline></video>
-
-<h3 id="status">待機中</h3>
+<h3 id="result">待機中</h3>
 
 <script>
 
-let stream = null
+const GAS_URL="https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec"
 
-async function startCamera(){
+let mode="use"
+let last=""
 
-try{
+function beep(){
 
-stream = await navigator.mediaDevices.getUserMedia({
-video:{
-facingMode:"environment"
+let ctx=new AudioContext()
+let osc=ctx.createOscillator()
+
+osc.connect(ctx.destination)
+
+osc.start()
+
+osc.stop(ctx.currentTime+0.1)
+
+}
+
+function startScan(m){
+
+mode=m
+
+Quagga.init({
+
+inputStream:{
+name:"Live",
+type:"LiveStream",
+target:document.querySelector('#scanner'),
+constraints:{
+facingMode:"environment",
+width:1280,
+height:720
+}
 },
-audio:false
-})
 
-const video = document.getElementById("video")
+locator:{
+patchSize:"medium",
+halfSample:true
+},
 
-video.srcObject = stream
+decoder:{
+readers:["code_128_reader"]
+},
 
-document.getElementById("status").innerText = "カメラ起動OK"
+locate:true
 
-}catch(err){
+},function(err){
 
-document.getElementById("status").innerText = "カメラ起動失敗"
+if(err){
 
 console.log(err)
 
-}
+return
 
 }
+
+Quagga.start()
+
+})
+
+}
+
+Quagga.onDetected(function(data){
+
+let code=data.codeResult.code
+
+if(code===last) return
+
+last=code
+
+let gtin=code.match(/\d{14}/)
+
+if(gtin) code=gtin[0]
+
+document.getElementById("result").innerText=code
+
+beep()
+
+fetch(GAS_URL+"?gtin="+code+"&mode="+mode)
+
+setTimeout(()=>{
+last=""
+},1500)
+
+})
 
 </script>
 
 </body>
+
 </html>
