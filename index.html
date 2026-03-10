@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html>
-
 <head>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<script src="https://unpkg.com/html5-qrcode"></script>
+<title>バーコードスキャン</title>
 
 <style>
 
@@ -14,13 +13,14 @@ font-family:sans-serif;
 text-align:center;
 }
 
-#reader{
-width:320px;
-margin:auto;
+video{
+width:95%;
+max-width:500px;
+border:2px solid #333;
 }
 
 button{
-font-size:20px;
+font-size:22px;
 padding:12px;
 margin:10px;
 }
@@ -31,59 +31,48 @@ margin:10px;
 
 <body>
 
-<h2>バーコードスキャン</h2>
+<h2>医療バーコードスキャン</h2>
 
-<button onclick="startScan()">スキャン開始</button>
+<button onclick="startCamera()">カメラ開始</button>
 
-<div id="reader"></div>
+<br>
 
-<h3 id="result">待機中</h3>
+<video id="video" autoplay playsinline></video>
+
+<h3 id="status">待機中</h3>
 
 <script>
 
-const GAS_URL="https://script.google.com/macros/s/AKfycbw_99iT1QfL-YTr_LM1wHl_BkYpS9dmL7VvSi_P8sD1cPa8h0FswZnTaG9aJMnSZqHfCg/exec"
+let stream = null
 
-function beep(){
+async function startCamera(){
 
-let ctx=new AudioContext()
-let osc=ctx.createOscillator()
+try{
 
-osc.connect(ctx.destination)
-
-osc.start()
-
-osc.stop(ctx.currentTime+0.1)
-
-}
-
-function startScan(){
-
-const scanner = new Html5Qrcode("reader")
-
-scanner.start(
-{ facingMode: "environment" },
-
-{
-fps:10,
-qrbox:250
+stream = await navigator.mediaDevices.getUserMedia({
+video:{
+facingMode:"environment"
 },
+audio:false
+})
 
-(code)=>{
+const video = document.getElementById("video")
 
-document.getElementById("result").innerText=code
+video.srcObject = stream
 
-beep()
+document.getElementById("status").innerText = "カメラ起動OK"
 
-fetch(GAS_URL+"?gtin="+code)
+}catch(err){
+
+document.getElementById("status").innerText = "カメラ起動失敗"
+
+console.log(err)
 
 }
-
-)
 
 }
 
 </script>
 
 </body>
-
 </html>
